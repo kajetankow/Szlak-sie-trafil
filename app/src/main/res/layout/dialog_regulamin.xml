@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="20dp"
+    android:background="@drawable/bg_dialog_regulamin">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="4dp">
+
+        <TextView
+            android:id="@+id/txtTytulRegulaminu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Szlak się Trafił"
+            android:textColor="#111827"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/txtOpisRegulaminu"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Aplikacja Szlak się Trafił © jest narzędziem wspierającym podróżujących — umożliwia planowanie i śledzenie swoich tras. Aplikacja wykorzystuje dane lokalizacyjne wyłącznie do dopasowania rekomendacji i wspierania procesu nawigacji. Aby kontynuować, zaakceptuj Regulamin."
+            android:textColor="#374151"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/txtRegulaminDlugi"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="1. Korzystając z aplikacji, akceptujesz jej charakter informacyjny i demonstracyjny.\n\n2. Trasy, czasy przejścia, przewyższenia i rekomendacje mają charakter orientacyjny i nie zastępują profesjonalnych map, oznaczeń terenowych ani oceny warunków na miejscu.\n\n3. Użytkownik odpowiada za ocenę warunków pogodowych, terenowych oraz własnych możliwości fizycznych.\n\n4. Dane lokalizacyjne mogą być używane do prezentacji rekomendacji tras w okolicy oraz wspierania działania mapy i nawigacji.\n\n5. Aplikacja nie gwarantuje dostępności, bezpieczeństwa ani aktualności wszystkich punktów i tras.\n\n6. Funkcje konta użytkownika, statystyk, znajomych i zapisanych tras mogą wymagać logowania.\n\n7. W razie pytań skontaktuj się z działem obsługi klienta: pomoc@szlaksietrafil.example.com."
+            android:textColor="#4B5563"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnOdrzuc"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Odrzuć" />
+
+            <Space
+                android:layout_width="12dp"
+                android:layout_height="1dp" />
+
+            <Button
+                android:id="@+id/btnAkceptuj"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Akceptuj" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</ScrollView>

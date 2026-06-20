@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="250dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="12dp"
+    android:layout_marginBottom="12dp"
+    android:background="@drawable/bg_card_route"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <ImageView
+        android:id="@+id/imgTrasa"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:background="@drawable/bg_route_image"
+        android:contentDescription="Grafika trasy"
+        android:padding="22dp"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_route_placeholder" />
+
+    <TextView
+        android:id="@+id/txtNazwaTrasy"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:maxLines="2"
+        android:text="Nazwa trasy"
+        android:textColor="#111827"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/txtOpisTrasy"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:maxLines="3"
+        android:text="Opis trasy"
+        android:textColor="#4B5563"
+        android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/txtParametryTrasy"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="9dp"
+        android:text="4.8 km • 35 m • 85 min • Łatwa"
+        android:textColor="#2563EB"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/txtTypTrasy"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="Kraków / Miejska"
+        android:textColor="#6B7280"
+        android:textSize="13sp" />
+
+</LinearLayout>

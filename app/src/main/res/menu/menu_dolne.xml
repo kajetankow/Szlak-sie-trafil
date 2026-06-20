@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/menu_start"
+        android:title="Start"
+        android:icon="@android:drawable/ic_menu_compass" />
+    <item
+        android:id="@+id/menu_trasy"
+        android:title="Trasy"
+        android:icon="@android:drawable/ic_menu_directions" />
+    <item
+        android:id="@+id/menu_mapa"
+        android:title="Mapa"
+        android:icon="@android:drawable/ic_menu_mapmode" />
+    <item
+        android:id="@+id/menu_wiecej"
+        android:title="Konto"
+        android:icon="@drawable/ic_account_bust" />
+</menu>
