@@ -60,6 +60,7 @@ public class MapaTrasyActivity extends AppCompatActivity {
     private TextView btnRozpocznijTrase;
     private TextView btnZoomPlus;
     private TextView btnZoomMinus;
+    private TextView btnWycentrujMape;
 
     private TrasyViewModel trasyViewModel;
     private LocationManager locationManager;
@@ -134,6 +135,7 @@ public class MapaTrasyActivity extends AppCompatActivity {
         btnRozpocznijTrase = findViewById(R.id.btnRozpocznijTrase);
         btnZoomPlus = findViewById(R.id.btnZoomPlus);
         btnZoomMinus = findViewById(R.id.btnZoomMinus);
+        btnWycentrujMape = findViewById(R.id.btnWycentrujMape);
     }
 
     private void przygotujMape() {
@@ -149,6 +151,7 @@ public class MapaTrasyActivity extends AppCompatActivity {
 
         btnZoomPlus.setOnClickListener(v -> mapa.getController().zoomIn());
         btnZoomMinus.setOnClickListener(v -> mapa.getController().zoomOut());
+        btnWycentrujMape.setOnClickListener(v -> wycentrujNaUzytkowniku());
 
         btnRozpocznijTrase.setOnClickListener(v -> {
             if (!jestTrasa) {
@@ -346,12 +349,24 @@ public class MapaTrasyActivity extends AppCompatActivity {
 
         markerLokalizacji.setPosition(punkt);
 
-        if (centruj || !jestTrasa) {
-            mapa.getController().setZoom(16.0);
+        if (centruj) {
             mapa.getController().animateTo(punkt);
         }
 
         mapa.invalidate();
+    }
+
+    private void wycentrujNaUzytkowniku() {
+        if (ostatniaLokalizacjaUzytkownika == null) {
+            Toast.makeText(this, "Nie mamy jeszcze Twojej lokalizacji", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        GeoPoint punkt = new GeoPoint(
+                ostatniaLokalizacjaUzytkownika.getLatitude(),
+                ostatniaLokalizacjaUzytkownika.getLongitude()
+        );
+        mapa.getController().animateTo(punkt);
     }
 
     private void aktualizujDystansGps(Location location) {

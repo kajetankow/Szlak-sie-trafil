@@ -74,6 +74,19 @@
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/btnWycentrujMape"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_zoom_button_purple"
+                android:elevation="8dp"
+                android:gravity="center"
+                android:text="◎"
+                android:textColor="#FFFFFF"
+                android:textSize="26sp"
+                android:textStyle="bold" />
+
+            <TextView
                 android:id="@+id/btnZoomMinus"
                 android:layout_width="52dp"
                 android:layout_height="52dp"
