@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.Looper;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -47,7 +48,7 @@ public class TrasyRoomRepository {
 
     public void getPunktyTrasyAsync(UUID trasaId, Callback<List<PunktTrasy>> callback) {
         executorService.execute(() -> {
-            List<PunktTrasyEntity> encje = trasyDAO.getPunktyTrasy(trasaId.toString());
+            List<PunktTrasyZKategoria> encje = trasyDAO.getPunktyTrasy(trasaId.toString());
             List<PunktTrasy> punkty = PunktTrasyMapper.toModelList(encje);
 
             mainHandler.post(() -> callback.onResult(punkty));
@@ -56,7 +57,7 @@ public class TrasyRoomRepository {
 
     public void getPunktyAsync(Callback<List<PunktTrasy>> callback) {
         executorService.execute(() -> {
-            List<PunktTrasyEntity> encje = trasyDAO.getPunkty();
+            List<PunktTrasyZKategoria> encje = trasyDAO.getPunkty();
             List<PunktTrasy> punkty = PunktTrasyMapper.toModelList(encje);
 
             mainHandler.post(() -> callback.onResult(punkty));
@@ -65,7 +66,16 @@ public class TrasyRoomRepository {
 
     public void szukajPunktyAsync(String fraza, Callback<List<PunktTrasy>> callback) {
         executorService.execute(() -> {
-            List<PunktTrasyEntity> encje = trasyDAO.szukajPunkty(fraza == null ? "" : fraza);
+            List<PunktTrasyZKategoria> encje = trasyDAO.szukajPunkty(fraza == null ? "" : fraza);
+            List<PunktTrasy> punkty = PunktTrasyMapper.toModelList(encje);
+
+            mainHandler.post(() -> callback.onResult(punkty));
+        });
+    }
+
+    public void getOstatnioOdwiedzonePunktyAsync(Callback<List<PunktTrasy>> callback) {
+        executorService.execute(() -> {
+            List<PunktTrasyZKategoria> encje = trasyDAO.getOstatnioOdwiedzonePunkty(aktualnyUzytkownikId());
             List<PunktTrasy> punkty = PunktTrasyMapper.toModelList(encje);
 
             mainHandler.post(() -> callback.onResult(punkty));
@@ -101,7 +111,7 @@ public class TrasyRoomRepository {
 
     public void dodajPunktAsync(PunktTrasy punkt, Runnable runnable) {
         executorService.execute(() -> {
-            trasyDAO.dodajPunkt(PunktTrasyMapper.toEntity(punkt));
+            zapiszPunktIRelacje(punkt);
             mainHandler.post(runnable);
         });
     }
@@ -118,7 +128,8 @@ public class TrasyRoomRepository {
             trasyDAO.usunPunktyTrasy(trasaId.toString());
 
             for (PunktTrasy punkt : punkty) {
-                trasyDAO.dodajPunkt(PunktTrasyMapper.toEntity(punkt));
+                punkt.setTrasaId(trasaId);
+                zapiszPunktIRelacje(punkt);
             }
 
             mainHandler.post(runnable);
@@ -176,5 +187,49 @@ public class TrasyRoomRepository {
         return prefs.getBoolean("uzytkownik_zalogowany", false)
                 ? prefs.getString("uzytkownik_id", "")
                 : "";
+    }
+
+    private void zapiszPunktIRelacje(PunktTrasy punkt) {
+        if (punkt == null) {
+            return;
+        }
+
+        String kategoria = tekstLubDomyslny(punkt.getKategoria(), "Inne");
+        String kategoriaUuid = trasyDAO.znajdzKategorie(kategoria);
+        if (kategoriaUuid == null || kategoriaUuid.trim().isEmpty()) {
+            kategoriaUuid = uuidKategorii(kategoria);
+            trasyDAO.dodajKategorie(new KategoriaPunktuEntity(kategoriaUuid, kategoria));
+        }
+
+        String punktUuid = trasyDAO.znajdzPunkt(
+                tekstLubDomyslny(punkt.getNazwa(), "Punkt"),
+                punkt.getLatitude(),
+                punkt.getLongitude()
+        );
+
+        if (punktUuid == null || punktUuid.trim().isEmpty()) {
+            punktUuid = punkt.getnId().toString();
+            punkt.setnId(UUID.fromString(punktUuid));
+            trasyDAO.dodajPunkt(PunktTrasyMapper.toEntity(punkt, kategoriaUuid));
+        } else {
+            punkt.setnId(UUID.fromString(punktUuid));
+        }
+
+        if (punkt.getTrasaId() != null) {
+            trasyDAO.dodajPunktTrasy(new TrasaPunktEntity(
+                    punkt.getTrasaId().toString(),
+                    punktUuid,
+                    punkt.getKolejnosc()
+            ));
+        }
+    }
+
+    private String uuidKategorii(String nazwa) {
+        String klucz = "kategoria-" + tekstLubDomyslny(nazwa, "Inne").toLowerCase(Locale.ROOT).trim();
+        return UUID.nameUUIDFromBytes(klucz.getBytes()).toString();
+    }
+
+    private String tekstLubDomyslny(String tekst, String domyslny) {
+        return tekst == null || tekst.trim().isEmpty() ? domyslny : tekst.trim();
     }
 }

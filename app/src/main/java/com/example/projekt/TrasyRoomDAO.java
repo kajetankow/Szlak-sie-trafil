@@ -23,14 +23,41 @@ public interface TrasyRoomDAO {
     @Query("SELECT * FROM Trasy WHERE TrasaUuid = :id LIMIT 1")
     TrasaEntity getTrasa(String id);
 
-    @Query("SELECT * FROM PunktyTrasy WHERE TrasaUuid = :trasaId ORDER BY Kolejnosc ASC")
-    List<PunktTrasyEntity> getPunktyTrasy(String trasaId);
+    @Query("SELECT p.PunktUuid, tp.TrasaUuid, p.Nazwa, p.Opis, k.Nazwa AS Kategoria, " +
+            "p.Latitude, p.Longitude, tp.Kolejnosc " +
+            "FROM Trasa_Punkt tp " +
+            "INNER JOIN Punkty p ON p.PunktUuid = tp.PunktUuid " +
+            "LEFT JOIN KategoriePunktow k ON k.KategoriaUuid = p.KategoriaUuid " +
+            "WHERE tp.TrasaUuid = :trasaId " +
+            "ORDER BY tp.Kolejnosc ASC")
+    List<PunktTrasyZKategoria> getPunktyTrasy(String trasaId);
 
-    @Query("SELECT * FROM PunktyTrasy ORDER BY Nazwa COLLATE NOCASE ASC")
-    List<PunktTrasyEntity> getPunkty();
+    @Query("SELECT p.PunktUuid, NULL AS TrasaUuid, p.Nazwa, p.Opis, k.Nazwa AS Kategoria, " +
+            "p.Latitude, p.Longitude, 0 AS Kolejnosc " +
+            "FROM Punkty p " +
+            "LEFT JOIN KategoriePunktow k ON k.KategoriaUuid = p.KategoriaUuid " +
+            "ORDER BY p.Nazwa COLLATE NOCASE ASC")
+    List<PunktTrasyZKategoria> getPunkty();
 
-    @Query("SELECT * FROM PunktyTrasy WHERE Nazwa LIKE '%' || :fraza || '%' ORDER BY Nazwa COLLATE NOCASE ASC")
-    List<PunktTrasyEntity> szukajPunkty(String fraza);
+    @Query("SELECT p.PunktUuid, NULL AS TrasaUuid, p.Nazwa, p.Opis, k.Nazwa AS Kategoria, " +
+            "p.Latitude, p.Longitude, 0 AS Kolejnosc " +
+            "FROM Punkty p " +
+            "LEFT JOIN KategoriePunktow k ON k.KategoriaUuid = p.KategoriaUuid " +
+            "WHERE p.Nazwa LIKE '%' || :fraza || '%' " +
+            "ORDER BY p.Nazwa COLLATE NOCASE ASC")
+    List<PunktTrasyZKategoria> szukajPunkty(String fraza);
+
+    @Query("SELECT p.PunktUuid, tp.TrasaUuid, p.Nazwa, p.Opis, k.Nazwa AS Kategoria, " +
+            "p.Latitude, p.Longitude, MIN(tp.Kolejnosc) AS Kolejnosc " +
+            "FROM Treningi t " +
+            "INNER JOIN Trasa_Punkt tp ON tp.TrasaUuid = t.TrasaUuid " +
+            "INNER JOIN Punkty p ON p.PunktUuid = tp.PunktUuid " +
+            "LEFT JOIN KategoriePunktow k ON k.KategoriaUuid = p.KategoriaUuid " +
+            "WHERE t.UzytkownikId = :uzytkownikId " +
+            "GROUP BY p.PunktUuid " +
+            "ORDER BY MAX(t.DataStartu) DESC, MIN(tp.Kolejnosc) ASC " +
+            "LIMIT 5")
+    List<PunktTrasyZKategoria> getOstatnioOdwiedzonePunkty(String uzytkownikId);
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void dodajTrase(TrasaEntity trasa);
@@ -38,7 +65,7 @@ public interface TrasyRoomDAO {
     @Update
     void zmienTrase(TrasaEntity trasa);
 
-    @Query("DELETE FROM PunktyTrasy WHERE TrasaUuid = :trasaId")
+    @Query("DELETE FROM Trasa_Punkt WHERE TrasaUuid = :trasaId")
     void usunPunktyTrasy(String trasaId);
 
     @Query("DELETE FROM Trasy WHERE TrasaUuid = :trasaId")
@@ -47,7 +74,26 @@ public interface TrasyRoomDAO {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void dodajPunkt(PunktTrasyEntity punkt);
 
-    @Query("DELETE FROM PunktyTrasy WHERE PunktUuid = :punktId")
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    void dodajKategorie(KategoriaPunktuEntity kategoria);
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    void dodajPunktTrasy(TrasaPunktEntity trasaPunkt);
+
+    @Query("SELECT * FROM Punkty WHERE PunktUuid = :punktId LIMIT 1")
+    PunktTrasyEntity getPunktPoId(String punktId);
+
+    @Query("SELECT p.PunktUuid FROM Punkty p " +
+            "WHERE LOWER(TRIM(p.Nazwa)) = LOWER(TRIM(:nazwa)) " +
+            "AND ROUND(p.Latitude, 5) = ROUND(:latitude, 5) " +
+            "AND ROUND(p.Longitude, 5) = ROUND(:longitude, 5) " +
+            "LIMIT 1")
+    String znajdzPunkt(String nazwa, double latitude, double longitude);
+
+    @Query("SELECT KategoriaUuid FROM KategoriePunktow WHERE LOWER(TRIM(Nazwa)) = LOWER(TRIM(:nazwa)) LIMIT 1")
+    String znajdzKategorie(String nazwa);
+
+    @Query("DELETE FROM Punkty WHERE PunktUuid = :punktId")
     void usunPunkt(String punktId);
 
     @Query("UPDATE Trasy SET Ulubiona = :ulubiona WHERE TrasaUuid = :trasaId")

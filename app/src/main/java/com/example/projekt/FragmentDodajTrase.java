@@ -97,6 +97,7 @@ public class FragmentDodajTrase extends Fragment {
     private Polyline liniaPodsumowanie;
 
     private boolean trybKlikaniaMapy = false;
+    private boolean dodawaniePunktuBibliotekiZMapy = false;
     private boolean trybEdycji = false;
     private boolean punktyEdycjiWczytane = false;
     private UUID edytowanaTrasaId = null;
@@ -569,6 +570,20 @@ public class FragmentDodajTrase extends Fragment {
     }
 
     private void obsluzKlikniecieMapy(GeoPoint punktMapy) {
+        if (dodawaniePunktuBibliotekiZMapy) {
+            String nazwa = tekst(edtNazwaPunktu);
+            if (TextUtils.isEmpty(nazwa)) {
+                nazwa = "Punkt z mapy";
+            }
+
+            zapiszPunktBiblioteki(nazwa, punktMapy, null);
+            dodawaniePunktuBibliotekiZMapy = false;
+            trybKlikaniaMapy = false;
+            btnTrybMapa.setText("Wybierz punkty z mapy");
+            odswiezStanPunktow();
+            return;
+        }
+
         if (!trybKlikaniaMapy) {
             Toast.makeText(requireContext(), "Włącz tryb: Wybierz punkty z mapy", Toast.LENGTH_SHORT).show();
             return;
@@ -630,19 +645,26 @@ public class FragmentDodajTrase extends Fragment {
         kontener.addView(wyszukiwarka);
 
         LinearLayout przyciski = new LinearLayout(requireContext());
-        przyciski.setOrientation(LinearLayout.HORIZONTAL);
+        przyciski.setOrientation(LinearLayout.VERTICAL);
 
         Button btnSzukaj = new Button(requireContext());
         btnSzukaj.setText("Szukaj");
         stylizujPrzyciskFioletowy(btnSzukaj);
-        przyciski.addView(btnSzukaj, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        przyciski.addView(btnSzukaj, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         Button btnDodaj = new Button(requireContext());
-        btnDodaj.setText("Dodaj punkt");
+        btnDodaj.setText("Dodaj z wpisu");
         stylizujPrzyciskFioletowy(btnDodaj);
-        LinearLayout.LayoutParams btnDodajParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
-        btnDodajParams.setMargins(dp(8), 0, 0, 0);
+        LinearLayout.LayoutParams btnDodajParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        btnDodajParams.setMargins(0, dp(6), 0, 0);
         przyciski.addView(btnDodaj, btnDodajParams);
+
+        Button btnMapa = new Button(requireContext());
+        btnMapa.setText("Wybierz z mapy");
+        stylizujPrzyciskFioletowy(btnMapa);
+        LinearLayout.LayoutParams btnMapaParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        btnMapaParams.setMargins(0, dp(6), 0, 0);
+        przyciski.addView(btnMapa, btnMapaParams);
 
         kontener.addView(przyciski);
 
@@ -666,9 +688,11 @@ public class FragmentDodajTrase extends Fragment {
 
         btnSzukaj.setOnClickListener(v -> odswiezPopupPunktow(lista, wyszukiwarka.getText().toString()));
         btnDodaj.setOnClickListener(v -> dodajPunktDoBibliotekiZPopupu(wyszukiwarka, lista));
+        btnMapa.setOnClickListener(v -> rozpocznijDodawaniePunktuBibliotekiZMapy(dialog));
 
         dialog.setOnShowListener(d -> odswiezPopupPunktow(lista, ""));
         dialog.show();
+        stylizujPrzyciskZamknij(dialog);
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
@@ -704,6 +728,18 @@ public class FragmentDodajTrase extends Fragment {
         });
     }
 
+    private void rozpocznijDodawaniePunktuBibliotekiZMapy(AlertDialog dialog) {
+        dodawaniePunktuBibliotekiZMapy = true;
+        trybKlikaniaMapy = true;
+        btnTrybMapa.setText("Kliknij punkt biblioteki na mapie");
+
+        if (dialog != null) {
+            dialog.dismiss();
+        }
+
+        Toast.makeText(requireContext(), "Kliknij miejsce na mapie, aby zapisać punkt do listy", Toast.LENGTH_LONG).show();
+    }
+
     private void zapiszPunktBiblioteki(String nazwa, GeoPoint geoPoint, LinearLayout lista) {
         PunktTrasy punkt = new PunktTrasy();
         punkt.setTrasaId(null);
@@ -716,7 +752,9 @@ public class FragmentDodajTrase extends Fragment {
 
         punktyBiblioteki.add(0, punkt);
         trasyViewModel.dodajPunkt(punkt);
-        odswiezPopupPunktow(lista, "");
+        if (lista != null) {
+            odswiezPopupPunktow(lista, "");
+        }
         Toast.makeText(requireContext(), "Punkt dodany do listy", Toast.LENGTH_SHORT).show();
     }
 
@@ -853,11 +891,18 @@ public class FragmentDodajTrase extends Fragment {
     private Button malyPrzycisk(String tekst) {
         Button button = new Button(requireContext());
         button.setText(tekst);
-        button.setMinWidth(dp(42));
-        button.setMinHeight(dp(36));
+        button.setTextSize(24);
+        button.setMinWidth(0);
+        button.setMinHeight(0);
+        button.setMinimumWidth(0);
+        button.setMinimumHeight(0);
         button.setPadding(0, 0, 0, 0);
         button.setTextColor(Color.WHITE);
-        button.setBackground(utworzTloOkraglegoPrzycisku());
+        button.setBackground(utworzTloPionowegoPrzycisku("#7C3AED", "#7C3AED"));
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(36), dp(52));
+        params.setMargins(dp(6), 0, 0, 0);
+        button.setLayoutParams(params);
         return button;
     }
 
@@ -866,10 +911,22 @@ public class FragmentDodajTrase extends Fragment {
         button.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#7C3AED")));
     }
 
-    private GradientDrawable utworzTloOkraglegoPrzycisku() {
+    private void stylizujPrzyciskZamknij(AlertDialog dialog) {
+        Button zamknij = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+        if (zamknij == null) {
+            return;
+        }
+
+        zamknij.setTextColor(Color.parseColor("#7C3AED"));
+        zamknij.setBackground(utworzTloPionowegoPrzycisku("#FFFFFF", "#D1D5DB"));
+    }
+
+    private GradientDrawable utworzTloPionowegoPrzycisku(String kolorTla, String kolorObrysu) {
         GradientDrawable drawable = new GradientDrawable();
-        drawable.setShape(GradientDrawable.OVAL);
-        drawable.setColor(Color.parseColor("#7C3AED"));
+        drawable.setShape(GradientDrawable.RECTANGLE);
+        drawable.setCornerRadius(dp(18));
+        drawable.setColor(Color.parseColor(kolorTla));
+        drawable.setStroke(dp(1), Color.parseColor(kolorObrysu));
         return drawable;
     }
 

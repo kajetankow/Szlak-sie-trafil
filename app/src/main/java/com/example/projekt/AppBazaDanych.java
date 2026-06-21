@@ -9,6 +9,7 @@ import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 
@@ -16,9 +17,11 @@ import java.util.concurrent.Executors;
         entities = {
                 TrasaEntity.class,
                 PunktTrasyEntity.class,
+                KategoriaPunktuEntity.class,
+                TrasaPunktEntity.class,
                 TreningEntity.class
         },
-        version = 4,
+        version = 7,
         exportSchema = false
 )
 public abstract class AppBazaDanych extends RoomDatabase {
@@ -35,7 +38,7 @@ public abstract class AppBazaDanych extends RoomDatabase {
                             "BazaTrasRoom.db"
                     )
                     .fallbackToDestructiveMigration(false)
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                     .addCallback(callback)
                     .build();
         }
@@ -62,6 +65,53 @@ public abstract class AppBazaDanych extends RoomDatabase {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase db) {
             dodajKrakowskieTrasyDev(db);
+        }
+    };
+
+    private static final Migration MIGRATION_4_5 = new Migration(4, 5) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            dodajPunktyDevKrakowStare(db);
+        }
+    };
+
+    private static final Migration MIGRATION_5_6 = new Migration(5, 6) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            usunDuplikatyPunktowBiblioteki(db);
+            dodajPunktyDevKrakowStare(db);
+            usunDuplikatyPunktowBiblioteki(db);
+        }
+    };
+
+    private static final Migration MIGRATION_6_7 = new Migration(6, 7) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `KategoriePunktow` (`KategoriaUuid` TEXT NOT NULL, `Nazwa` TEXT, PRIMARY KEY(`KategoriaUuid`))");
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_KategoriePunktow_Nazwa` ON `KategoriePunktow` (`Nazwa`)");
+            db.execSQL("INSERT OR IGNORE INTO `KategoriePunktow` (`KategoriaUuid`, `Nazwa`) VALUES ('inne', 'Inne')");
+            db.execSQL("INSERT OR IGNORE INTO `KategoriePunktow` (`KategoriaUuid`, `Nazwa`) " +
+                    "SELECT LOWER(TRIM(COALESCE(NULLIF(`Kategoria`, ''), 'Inne'))), COALESCE(NULLIF(TRIM(`Kategoria`), ''), 'Inne') " +
+                    "FROM `PunktyTrasy`");
+
+            db.execSQL("CREATE TABLE IF NOT EXISTS `Punkty` (`PunktUuid` TEXT NOT NULL, `KategoriaUuid` TEXT, `Nazwa` TEXT, `Opis` TEXT, `Latitude` REAL NOT NULL, `Longitude` REAL NOT NULL, PRIMARY KEY(`PunktUuid`), FOREIGN KEY(`KategoriaUuid`) REFERENCES `KategoriePunktow`(`KategoriaUuid`) ON UPDATE NO ACTION ON DELETE SET NULL)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_Punkty_KategoriaUuid` ON `Punkty` (`KategoriaUuid`)");
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_Punkty_Nazwa_Latitude_Longitude` ON `Punkty` (`Nazwa`, `Latitude`, `Longitude`)");
+            db.execSQL("INSERT OR IGNORE INTO `Punkty` (`PunktUuid`, `KategoriaUuid`, `Nazwa`, `Opis`, `Latitude`, `Longitude`) " +
+                    "SELECT MIN(`PunktUuid`), LOWER(TRIM(COALESCE(NULLIF(`Kategoria`, ''), 'Inne'))), `Nazwa`, `Opis`, `Latitude`, `Longitude` " +
+                    "FROM `PunktyTrasy` " +
+                    "GROUP BY LOWER(TRIM(`Nazwa`)), ROUND(`Latitude`, 5), ROUND(`Longitude`, 5)");
+
+            db.execSQL("CREATE TABLE IF NOT EXISTS `Trasa_Punkt` (`TrasaUuid` TEXT NOT NULL, `PunktUuid` TEXT NOT NULL, `Kolejnosc` INTEGER NOT NULL, PRIMARY KEY(`TrasaUuid`, `PunktUuid`), FOREIGN KEY(`TrasaUuid`) REFERENCES `Trasy`(`TrasaUuid`) ON UPDATE NO ACTION ON DELETE CASCADE, FOREIGN KEY(`PunktUuid`) REFERENCES `Punkty`(`PunktUuid`) ON UPDATE NO ACTION ON DELETE CASCADE)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_Trasa_Punkt_TrasaUuid` ON `Trasa_Punkt` (`TrasaUuid`)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_Trasa_Punkt_PunktUuid` ON `Trasa_Punkt` (`PunktUuid`)");
+            db.execSQL("INSERT OR REPLACE INTO `Trasa_Punkt` (`TrasaUuid`, `PunktUuid`, `Kolejnosc`) " +
+                    "SELECT pt.`TrasaUuid`, " +
+                    "(SELECT MIN(p2.`PunktUuid`) FROM `PunktyTrasy` p2 WHERE LOWER(TRIM(p2.`Nazwa`)) = LOWER(TRIM(pt.`Nazwa`)) AND ROUND(p2.`Latitude`, 5) = ROUND(pt.`Latitude`, 5) AND ROUND(p2.`Longitude`, 5) = ROUND(pt.`Longitude`, 5)), " +
+                    "pt.`Kolejnosc` FROM `PunktyTrasy` pt WHERE pt.`TrasaUuid` IS NOT NULL");
+            db.execSQL("DROP TABLE IF EXISTS `PunktyTrasy`");
+
+            dodajPunktyDevKrakow(db);
         }
     };
 
@@ -100,6 +150,7 @@ public abstract class AppBazaDanych extends RoomDatabase {
                 "Tatry", 9.5, 390, 210, "Średnia", "Górska");
 
         dodajKrakowskieTrasyDev(dao, muzea, zabytki, uczelnie, galerie, bulwary);
+        dodajPunktyDevKrakow(dao);
 
         dodajPunkt(dao, krakow, "Rynek Główny", "Start trasy", "Zabytek", 50.061947, 19.936856, 1);
         dodajPunkt(dao, krakow, "Sukiennice", "Punkt centralny rynku", "Zabytek", 50.061694, 19.937342, 2);
@@ -245,27 +296,139 @@ public abstract class AppBazaDanych extends RoomDatabase {
         );
     }
 
+    private static void dodajPunktyDevKrakow(TrasyRoomDAO dao) {
+        dodajPunktDev(dao, "Wawel", "Zamek Królewski i katedra", "Zabytek", 50.054018, 19.935203);
+        dodajPunktDev(dao, "AGH A0", "Gmach główny Akademii Górniczo-Hutniczej", "Użytkowe", 50.064707, 19.923515);
+        dodajPunktDev(dao, "Sukiennice", "Historyczna hala targowa na Rynku Głównym", "Zabytek", 50.061694, 19.937342);
+        dodajPunktDev(dao, "Kościół Mariacki", "Bazylika Mariacka przy Rynku Głównym", "Sakralne", 50.061675, 19.939375);
+        dodajPunktDev(dao, "Dworzec Główny Zachód", "Zachodnia część dworca kolejowego", "Użytkowe", 50.067460, 19.944360);
+        dodajPunktDev(dao, "Bonarka", "Bonarka City Center", "Miejsce handlowe", 50.029420, 19.949290);
+        dodajPunktDev(dao, "Galeria Krakowska", "Centrum handlowe przy dworcu", "Miejsce handlowe", 50.067971, 19.945038);
+        dodajPunktDev(dao, "Most Grunwaldzki", "Most nad Wisłą przy centrum Krakowa", "Użytkowe", 50.049450, 19.934660);
+        dodajPunktDev(dao, "Rondo Mogilskie", "Duży węzeł komunikacyjny", "Użytkowe", 50.065300, 19.958200);
+        dodajPunktDev(dao, "Rynek Główny", "Centralny plac Starego Miasta", "Zabytek", 50.061947, 19.936856);
+        dodajPunktDev(dao, "Barbakan", "Element dawnych fortyfikacji Krakowa", "Zabytek", 50.065627, 19.941657);
+        dodajPunktDev(dao, "Kładka Bernatka", "Kładka pieszo-rowerowa między Kazimierzem i Podgórzem", "Użytkowe", 50.046248, 19.948868);
+    }
+
+    private static void dodajPunktyDevKrakow(SupportSQLiteDatabase db) {
+        dodajPunktDev(db, "Wawel", "Zamek Królewski i katedra", "Zabytek", 50.054018, 19.935203);
+        dodajPunktDev(db, "AGH A0", "Gmach główny Akademii Górniczo-Hutniczej", "Użytkowe", 50.064707, 19.923515);
+        dodajPunktDev(db, "Sukiennice", "Historyczna hala targowa na Rynku Głównym", "Zabytek", 50.061694, 19.937342);
+        dodajPunktDev(db, "Kościół Mariacki", "Bazylika Mariacka przy Rynku Głównym", "Sakralne", 50.061675, 19.939375);
+        dodajPunktDev(db, "Dworzec Główny Zachód", "Zachodnia część dworca kolejowego", "Użytkowe", 50.067460, 19.944360);
+        dodajPunktDev(db, "Bonarka", "Bonarka City Center", "Miejsce handlowe", 50.029420, 19.949290);
+        dodajPunktDev(db, "Galeria Krakowska", "Centrum handlowe przy dworcu", "Miejsce handlowe", 50.067971, 19.945038);
+        dodajPunktDev(db, "Most Grunwaldzki", "Most nad Wisłą przy centrum Krakowa", "Użytkowe", 50.049450, 19.934660);
+        dodajPunktDev(db, "Rondo Mogilskie", "Duży węzeł komunikacyjny", "Użytkowe", 50.065300, 19.958200);
+        dodajPunktDev(db, "Rynek Główny", "Centralny plac Starego Miasta", "Zabytek", 50.061947, 19.936856);
+        dodajPunktDev(db, "Barbakan", "Element dawnych fortyfikacji Krakowa", "Zabytek", 50.065627, 19.941657);
+        dodajPunktDev(db, "Kładka Bernatka", "Kładka pieszo-rowerowa między Kazimierzem i Podgórzem", "Użytkowe", 50.046248, 19.948868);
+    }
+
+    private static void dodajPunktyDevKrakowStare(SupportSQLiteDatabase db) {
+        dodajPunktDevStary(db, "Wawel", "Zamek Królewski i katedra", "Zabytek", 50.054018, 19.935203);
+        dodajPunktDevStary(db, "AGH A0", "Gmach główny Akademii Górniczo-Hutniczej", "Użytkowe", 50.064707, 19.923515);
+        dodajPunktDevStary(db, "Sukiennice", "Historyczna hala targowa na Rynku Głównym", "Zabytek", 50.061694, 19.937342);
+        dodajPunktDevStary(db, "Kościół Mariacki", "Bazylika Mariacka przy Rynku Głównym", "Sakralne", 50.061675, 19.939375);
+        dodajPunktDevStary(db, "Dworzec Główny Zachód", "Zachodnia część dworca kolejowego", "Użytkowe", 50.067460, 19.944360);
+        dodajPunktDevStary(db, "Bonarka", "Bonarka City Center", "Miejsce handlowe", 50.029420, 19.949290);
+        dodajPunktDevStary(db, "Galeria Krakowska", "Centrum handlowe przy dworcu", "Miejsce handlowe", 50.067971, 19.945038);
+        dodajPunktDevStary(db, "Most Grunwaldzki", "Most nad Wisłą przy centrum Krakowa", "Użytkowe", 50.049450, 19.934660);
+        dodajPunktDevStary(db, "Rondo Mogilskie", "Duży węzeł komunikacyjny", "Użytkowe", 50.065300, 19.958200);
+        dodajPunktDevStary(db, "Rynek Główny", "Centralny plac Starego Miasta", "Zabytek", 50.061947, 19.936856);
+        dodajPunktDevStary(db, "Barbakan", "Element dawnych fortyfikacji Krakowa", "Zabytek", 50.065627, 19.941657);
+        dodajPunktDevStary(db, "Kładka Bernatka", "Kładka pieszo-rowerowa między Kazimierzem i Podgórzem", "Użytkowe", 50.046248, 19.948868);
+    }
+
+    private static void dodajPunktDev(TrasyRoomDAO dao, String nazwa, String opis,
+                                      String kategoria, double lat, double lon) {
+        String punktId = UUID.nameUUIDFromBytes(("dev-punkt-krakow-" + nazwa).getBytes()).toString();
+        String kategoriaId = uuidKategorii(kategoria);
+        dao.dodajKategorie(new KategoriaPunktuEntity(kategoriaId, kategoria));
+        dao.dodajPunkt(new PunktTrasyEntity(
+                punktId,
+                kategoriaId,
+                nazwa,
+                opis,
+                lat,
+                lon
+        ));
+    }
+
+    private static void dodajPunktDev(SupportSQLiteDatabase db, String nazwa, String opis,
+                                      String kategoria, double lat, double lon) {
+        String punktId = UUID.nameUUIDFromBytes(("dev-punkt-krakow-" + nazwa).getBytes()).toString();
+        String kategoriaId = uuidKategorii(kategoria);
+        dodajKategorie(db, kategoriaId, kategoria);
+        db.execSQL(
+                "INSERT OR IGNORE INTO `Punkty` (`PunktUuid`, `KategoriaUuid`, `Nazwa`, `Opis`, `Latitude`, `Longitude`) VALUES (?, ?, ?, ?, ?, ?)",
+                new Object[]{punktId, kategoriaId, nazwa, opis, lat, lon}
+        );
+    }
+
+    private static void dodajPunktDevStary(SupportSQLiteDatabase db, String nazwa, String opis,
+                                           String kategoria, double lat, double lon) {
+        db.execSQL(
+                "INSERT OR IGNORE INTO `PunktyTrasy` (`PunktUuid`, `TrasaUuid`, `Nazwa`, `Opis`, `Kategoria`, `Latitude`, `Longitude`, `Kolejnosc`) VALUES (?, NULL, ?, ?, ?, ?, ?, 0)",
+                new Object[]{UUID.nameUUIDFromBytes(("dev-punkt-krakow-" + nazwa).getBytes()).toString(), nazwa, opis, kategoria, lat, lon}
+        );
+    }
+
+    private static void usunDuplikatyPunktowBiblioteki(SupportSQLiteDatabase db) {
+        db.execSQL(
+                "DELETE FROM `PunktyTrasy` " +
+                        "WHERE `TrasaUuid` IS NULL " +
+                        "AND `PunktUuid` NOT IN (" +
+                        "SELECT MIN(`PunktUuid`) FROM `PunktyTrasy` " +
+                        "WHERE `TrasaUuid` IS NULL " +
+                        "GROUP BY LOWER(TRIM(`Nazwa`)), ROUND(`Latitude`, 5), ROUND(`Longitude`, 5)" +
+                        ")"
+        );
+    }
+
     private static void dodajPunkt(TrasyRoomDAO dao, String trasaId, String nazwa,
                                    String opis, String kategoria,
                                    double lat, double lon, int kolejnosc) {
+        String punktId = UUID.nameUUIDFromBytes(("punkt-" + nazwa + "-" + lat + "-" + lon).getBytes()).toString();
+        String kategoriaId = uuidKategorii(kategoria);
+        dao.dodajKategorie(new KategoriaPunktuEntity(kategoriaId, kategoria));
         dao.dodajPunkt(new PunktTrasyEntity(
-                UUID.randomUUID().toString(),
-                trasaId,
+                punktId,
+                kategoriaId,
                 nazwa,
                 opis,
-                kategoria,
                 lat,
-                lon,
-                kolejnosc
+                lon
         ));
+        dao.dodajPunktTrasy(new TrasaPunktEntity(trasaId, punktId, kolejnosc));
     }
 
     private static void dodajPunkt(SupportSQLiteDatabase db, String trasaId, String nazwa,
                                    String opis, String kategoria,
                                    double lat, double lon, int kolejnosc) {
+        String punktId = UUID.nameUUIDFromBytes(("punkt-" + nazwa + "-" + lat + "-" + lon).getBytes()).toString();
+        String kategoriaId = uuidKategorii(kategoria);
+        dodajKategorie(db, kategoriaId, kategoria);
         db.execSQL(
-                "INSERT OR IGNORE INTO `PunktyTrasy` (`PunktUuid`, `TrasaUuid`, `Nazwa`, `Opis`, `Kategoria`, `Latitude`, `Longitude`, `Kolejnosc`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                new Object[]{UUID.randomUUID().toString(), trasaId, nazwa, opis, kategoria, lat, lon, kolejnosc}
+                "INSERT OR IGNORE INTO `Punkty` (`PunktUuid`, `KategoriaUuid`, `Nazwa`, `Opis`, `Latitude`, `Longitude`) VALUES (?, ?, ?, ?, ?, ?)",
+                new Object[]{punktId, kategoriaId, nazwa, opis, lat, lon}
         );
+        db.execSQL(
+                "INSERT OR REPLACE INTO `Trasa_Punkt` (`TrasaUuid`, `PunktUuid`, `Kolejnosc`) VALUES (?, ?, ?)",
+                new Object[]{trasaId, punktId, kolejnosc}
+        );
+    }
+
+    private static void dodajKategorie(SupportSQLiteDatabase db, String id, String nazwa) {
+        db.execSQL(
+                "INSERT OR IGNORE INTO `KategoriePunktow` (`KategoriaUuid`, `Nazwa`) VALUES (?, ?)",
+                new Object[]{id, nazwa}
+        );
+    }
+
+    private static String uuidKategorii(String nazwa) {
+        String wartosc = nazwa == null || nazwa.trim().isEmpty() ? "Inne" : nazwa.trim();
+        return UUID.nameUUIDFromBytes(("kategoria-" + wartosc.toLowerCase(Locale.ROOT)).getBytes()).toString();
     }
 }

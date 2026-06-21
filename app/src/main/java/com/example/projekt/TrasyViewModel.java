@@ -17,6 +17,7 @@ public class TrasyViewModel extends AndroidViewModel {
     private final MutableLiveData<List<Trasa>> trasyLive = new MutableLiveData<>();
     private final MutableLiveData<List<PunktTrasy>> punktyTrasyLive = new MutableLiveData<>();
     private final MutableLiveData<List<PunktTrasy>> punktyLive = new MutableLiveData<>();
+    private final MutableLiveData<List<PunktTrasy>> ostatnioOdwiedzonePunktyLive = new MutableLiveData<>();
     private final MutableLiveData<List<TreningEntity>> treningiLive = new MutableLiveData<>();
 
     public TrasyViewModel(@NonNull Application application) {
@@ -35,6 +36,10 @@ public class TrasyViewModel extends AndroidViewModel {
 
     public LiveData<List<PunktTrasy>> getPunkty() {
         return punktyLive;
+    }
+
+    public LiveData<List<PunktTrasy>> getOstatnioOdwiedzonePunkty() {
+        return ostatnioOdwiedzonePunktyLive;
     }
 
     public LiveData<List<TreningEntity>> getTreningi() {
@@ -61,6 +66,10 @@ public class TrasyViewModel extends AndroidViewModel {
         trasyRepository.szukajPunktyAsync(fraza, punktyLive::setValue);
     }
 
+    public void pobierzOstatnioOdwiedzonePunkty() {
+        trasyRepository.getOstatnioOdwiedzonePunktyAsync(ostatnioOdwiedzonePunktyLive::setValue);
+    }
+
     public void dodajTrase(Trasa trasa) {
         trasyRepository.dodajTraseAsync(trasa, this::pobierzTrasy);
     }
@@ -79,6 +88,7 @@ public class TrasyViewModel extends AndroidViewModel {
 
             if (punkt.getTrasaId() != null) {
                 pobierzPunktyTrasy(punkt.getTrasaId());
+                pobierzOstatnioOdwiedzonePunkty();
             }
 
             pobierzPunkty();
@@ -99,6 +109,7 @@ public class TrasyViewModel extends AndroidViewModel {
         trasyRepository.zastapPunktyTrasyAsync(trasaId, punkty, () -> {
             pobierzTrasy();
             pobierzPunktyTrasy(trasaId);
+            pobierzOstatnioOdwiedzonePunkty();
 
             if (runnable != null) {
                 runnable.run();
@@ -112,6 +123,7 @@ public class TrasyViewModel extends AndroidViewModel {
 
     public void pobierzTreningi() {
         trasyRepository.getTreningiAsync(treningiLive::setValue);
+        pobierzOstatnioOdwiedzonePunkty();
     }
 
     public void dodajTrening(TreningEntity trening) {

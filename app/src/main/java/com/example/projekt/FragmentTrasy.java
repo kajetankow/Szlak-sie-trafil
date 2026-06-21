@@ -1,13 +1,15 @@
 package com.example.projekt;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.GradientDrawable;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
@@ -22,6 +24,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -29,6 +32,7 @@ import android.widget.PopupMenu;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -44,6 +48,14 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.textfield.TextInputEditText;
 
+import org.osmdroid.config.Configuration;
+import org.osmdroid.events.MapEventsReceiver;
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory;
+import org.osmdroid.util.GeoPoint;
+import org.osmdroid.views.MapView;
+import org.osmdroid.views.overlay.MapEventsOverlay;
+import org.osmdroid.views.overlay.Marker;
+
 import java.io.IOException;
 import java.text.Collator;
 import java.util.ArrayList;
@@ -56,16 +68,6 @@ import java.util.UUID;
 public class FragmentTrasy extends Fragment {
 
     private static final String PREFS_NAME = "tourroute_prefs";
-
-    // Klucze intencji używane przy wybieraniu lokalizacji punktu na mapie.
-    // UWAGA: aby opcja "Wskaż na mapie" działała, MapaTrasyActivity musi:
-    //  - sprawdzić boolean extra EXTRA_TRYB_WYBORU_PUNKTU,
-    //  - po tapnięciu na mapie wywołać setResult(RESULT_OK, intent z extrami
-    //    EXTRA_WYBRANA_LAT / EXTRA_WYBRANA_LON) i zakończyć działanie (finish()).
-    private static final String EXTRA_TRYB_WYBORU_PUNKTU = "tryb_wyboru_punktu";
-    private static final String EXTRA_WYBRANA_LAT = "wybrana_lat";
-    private static final String EXTRA_WYBRANA_LON = "wybrana_lon";
-
     private TrasyViewModel trasyViewModel;
 
     private LinearLayout kontenerBloczkowFiltrow;
@@ -95,7 +97,6 @@ public class FragmentTrasy extends Fragment {
     private TrasyAdapter adapterProponowaneTrasy;
 
     private ActivityResultLauncher<String[]> lokalizacjaLauncher;
-    private ActivityResultLauncher<Intent> wyborLokalizacjiLauncher;
 
     private final List<Trasa> wszystkieTrasy = new ArrayList<>();
     private final List<PunktTrasy> wszystkiePunkty = new ArrayList<>();
@@ -108,16 +109,6 @@ public class FragmentTrasy extends Fragment {
     private boolean pokazWszystkieProponowaneTrasy = false;
     private boolean dodanoFiltrGps = false;
 
-    private OdbiorcaWybranejLokalizacji odbiorcaWybranejLokalizacji;
-
-    /**
-     * Prosty interfejs pozwalający przekazać wynik wybrania punktu na mapie
-     * do aktualnie otwartego dialogu dodawania punktu.
-     */
-    private interface OdbiorcaWybranejLokalizacji {
-        void onWybranoLokalizacje(double lat, double lon);
-    }
-
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -127,26 +118,6 @@ public class FragmentTrasy extends Fragment {
                 result -> pobierzObecnaLokalizacje()
         );
 
-        wyborLokalizacjiLauncher = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
-                        return;
-                    }
-
-                    if (odbiorcaWybranejLokalizacji == null) {
-                        return;
-                    }
-
-                    Intent dane = result.getData();
-                    double lat = dane.getDoubleExtra(EXTRA_WYBRANA_LAT, Double.NaN);
-                    double lon = dane.getDoubleExtra(EXTRA_WYBRANA_LON, Double.NaN);
-
-                    if (!Double.isNaN(lat) && !Double.isNaN(lon)) {
-                        odbiorcaWybranejLokalizacji.onWybranoLokalizacje(lat, lon);
-                    }
-                }
-        );
     }
 
     @Override
@@ -266,7 +237,7 @@ public class FragmentTrasy extends Fragment {
             odswiezPunkty();
         });
 
-        btnDodajPunkt.setOnClickListener(v -> pokazDialogDodajPunkt());
+        btnDodajPunkt.setOnClickListener(v -> pokazDialogDodajPunktNowy());
 
         btnRozwinProponowaneTrasy.setOnClickListener(v -> {
             pokazWszystkieProponowaneTrasy = !pokazWszystkieProponowaneTrasy;
@@ -999,32 +970,44 @@ public class FragmentTrasy extends Fragment {
                 .commit();
     }
 
-    /**
-     * Pokazuje dialog dodawania nowego, samodzielnego punktu.
-     * Lokalizację można ustalić trzema sposobami: po nazwie/adresie (geokodowanie),
-     * przez podanie współrzędnych ręcznie, albo przez wskazanie miejsca na mapie.
-     */
-    private void pokazDialogDodajPunkt() {
+    private void pokazDialogDodajPunktNowy() {
         Context context = requireContext();
-        int padding = dp(20);
+        Configuration.getInstance().setUserAgentValue(context.getPackageName());
 
         LinearLayout kontener = new LinearLayout(context);
         kontener.setOrientation(LinearLayout.VERTICAL);
-        kontener.setPadding(padding, dp(16), padding, dp(4));
+        kontener.setPadding(dp(18), dp(14), dp(18), dp(10));
+        kontener.setBackgroundResource(R.drawable.bg_dialog_rounded);
 
         EditText edtNazwa = new EditText(context);
         edtNazwa.setHint("Nazwa punktu");
+        edtNazwa.setSingleLine(true);
         kontener.addView(edtNazwa);
 
-        EditText edtKategoria = new EditText(context);
-        edtKategoria.setHint("Kategoria (np. Widok, Schronisko, Parking)");
-        kontener.addView(edtKategoria, marginTopParams(dp(10)));
+        kontener.addView(tekstDialogu("Kategoria", 13, "#4B5563", true), marginTopParams(dp(10)));
 
-        TextView txtSposob = new TextView(context);
-        txtSposob.setText("Wybierz sposób ustalenia lokalizacji:");
-        txtSposob.setTextColor(Color.parseColor("#111827"));
-        txtSposob.setTypeface(null, Typeface.BOLD);
-        kontener.addView(txtSposob, marginTopParams(dp(18)));
+        Spinner spinnerKategoria = new Spinner(context);
+        List<String> kategorie = new ArrayList<>();
+        kategorie.add("Parking");
+        kategorie.add("Zabytek");
+        kategorie.add("Miejsce handlowe");
+        kategorie.add("Sakralne");
+        kategorie.add("Użytkowe");
+        kategorie.add("Przyroda");
+        kategorie.add("Widok");
+        kategorie.add("Gastronomia");
+        kategorie.add("Inne");
+        ArrayAdapter<String> adapterKategorii = new ArrayAdapter<>(
+                context,
+                android.R.layout.simple_spinner_item,
+                kategorie
+        );
+        adapterKategorii.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spinnerKategoria.setAdapter(adapterKategorii);
+        kontener.addView(spinnerKategoria);
+
+        TextView txtSposob = tekstDialogu("Sposób ustalenia lokalizacji", 15, "#111827", true);
+        kontener.addView(txtSposob, marginTopParams(dp(14)));
 
         RadioGroup grupaSposobow = new RadioGroup(context);
         grupaSposobow.setOrientation(LinearLayout.VERTICAL);
@@ -1044,71 +1027,80 @@ public class FragmentTrasy extends Fragment {
         rbMapa.setId(View.generateViewId());
         rbMapa.setText("Wskaż na mapie");
         grupaSposobow.addView(rbMapa);
+        kontener.addView(grupaSposobow, marginTopParams(dp(4)));
 
-        kontener.addView(grupaSposobow, marginTopParams(dp(6)));
-
-        // Sekcja: po nazwie / adresie.
         EditText edtAdres = new EditText(context);
-        edtAdres.setHint("Wpisz nazwę miejsca lub adres");
-        kontener.addView(edtAdres, marginTopParams(dp(10)));
+        edtAdres.setHint("Nazwa miejsca lub adres");
+        edtAdres.setSingleLine(true);
+        kontener.addView(edtAdres, marginTopParams(dp(8)));
 
-        // Sekcja: współrzędne.
         LinearLayout panelWspolrzednych = new LinearLayout(context);
         panelWspolrzednych.setOrientation(LinearLayout.HORIZONTAL);
 
         EditText edtLat = new EditText(context);
-        edtLat.setHint("Szerokość (lat)");
+        edtLat.setHint("Lat");
         edtLat.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
         panelWspolrzednych.addView(edtLat, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
 
         EditText edtLon = new EditText(context);
-        edtLon.setHint("Długość (lon)");
+        edtLon.setHint("Lon");
         edtLon.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
         LinearLayout.LayoutParams lonParams = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1);
         lonParams.setMargins(dp(10), 0, 0, 0);
         panelWspolrzednych.addView(edtLon, lonParams);
+        kontener.addView(panelWspolrzednych, marginTopParams(dp(8)));
 
-        kontener.addView(panelWspolrzednych, marginTopParams(dp(10)));
-
-        // Sekcja: wskazanie na mapie.
         LinearLayout panelMapa = new LinearLayout(context);
         panelMapa.setOrientation(LinearLayout.VERTICAL);
+        panelMapa.addView(tekstDialogu("Kliknij miejsce na mapie, potem zatwierdź przyciskiem Dodaj.", 13, "#4B5563", false));
 
-        Button btnWybierzNaMapie = new Button(context);
-        btnWybierzNaMapie.setText("Otwórz mapę i wskaż punkt");
-        panelMapa.addView(btnWybierzNaMapie);
+        MapView mapaMini = new MapView(context);
+        mapaMini.setTileSource(TileSourceFactory.MAPNIK);
+        mapaMini.setMultiTouchControls(true);
+        mapaMini.getController().setZoom(13.0);
+        mapaMini.getController().setCenter(new GeoPoint(50.061947, 19.936856));
+        LinearLayout.LayoutParams mapaParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(220)
+        );
+        mapaParams.setMargins(0, dp(8), 0, 0);
+        panelMapa.addView(mapaMini, mapaParams);
 
-        TextView txtWybranaLokalizacja = new TextView(context);
-        txtWybranaLokalizacja.setText("Nie wybrano jeszcze lokalizacji na mapie.");
-        txtWybranaLokalizacja.setTextColor(Color.parseColor("#4B5563"));
-        txtWybranaLokalizacja.setTextSize(13);
+        TextView txtWybranaLokalizacja = tekstDialogu("Nie wybrano jeszcze lokalizacji na mapie.", 13, "#4B5563", false);
         panelMapa.addView(txtWybranaLokalizacja, marginTopParams(dp(6)));
+        kontener.addView(panelMapa, marginTopParams(dp(8)));
 
-        kontener.addView(panelMapa, marginTopParams(dp(10)));
-
-        // Przechowuje wybraną na mapie lokalizację (effectively-final tablica jako kontener).
         double[] wybranaLokalizacja = new double[]{Double.NaN, Double.NaN};
+        Marker[] markerWyboru = new Marker[]{null};
+
+        mapaMini.getOverlays().add(new MapEventsOverlay(new MapEventsReceiver() {
+            @Override
+            public boolean singleTapConfirmedHelper(GeoPoint p) {
+                ustawWybranyPunktNaMiniMapie(mapaMini, markerWyboru, wybranaLokalizacja, txtWybranaLokalizacja, p);
+                return true;
+            }
+
+            @Override
+            public boolean longPressHelper(GeoPoint p) {
+                ustawWybranyPunktNaMiniMapie(mapaMini, markerWyboru, wybranaLokalizacja, txtWybranaLokalizacja, p);
+                return true;
+            }
+        }));
 
         Runnable aktualizujWidocznosc = () -> {
             edtAdres.setVisibility(rbNazwa.isChecked() ? View.VISIBLE : View.GONE);
             panelWspolrzednych.setVisibility(rbWspolrzedne.isChecked() ? View.VISIBLE : View.GONE);
             panelMapa.setVisibility(rbMapa.isChecked() ? View.VISIBLE : View.GONE);
+
+            if (rbMapa.isChecked()) {
+                mapaMini.postDelayed(() -> {
+                    mapaMini.onResume();
+                    mapaMini.invalidate();
+                }, 150);
+            }
         };
         aktualizujWidocznosc.run();
-
         grupaSposobow.setOnCheckedChangeListener((group, checkedId) -> aktualizujWidocznosc.run());
-
-        btnWybierzNaMapie.setOnClickListener(v -> {
-            odbiorcaWybranejLokalizacji = (lat, lon) -> {
-                wybranaLokalizacja[0] = lat;
-                wybranaLokalizacja[1] = lon;
-                txtWybranaLokalizacja.setText(String.format(Locale.ROOT, "Wybrano: %.6f, %.6f", lat, lon));
-            };
-
-            Intent intent = new Intent(requireContext(), MapaTrasyActivity.class);
-            intent.putExtra(EXTRA_TRYB_WYBORU_PUNKTU, true);
-            wyborLokalizacjiLauncher.launch(intent);
-        });
 
         ScrollView scrollWrapper = new ScrollView(context);
         scrollWrapper.addView(kontener);
@@ -1120,8 +1112,16 @@ public class FragmentTrasy extends Fragment {
                 .setNegativeButton("Anuluj", null)
                 .create();
 
-        dialog.setOnDismissListener(d -> odbiorcaWybranejLokalizacji = null);
+        dialog.setOnShowListener(d -> {
+            stylizujDialogDodawaniaPunktu(dialog);
+            mapaMini.onResume();
+            mapaMini.invalidate();
+        });
+        dialog.setOnDismissListener(d -> mapaMini.onPause());
         dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        }
 
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String nazwa = edtNazwa.getText() == null ? "" : edtNazwa.getText().toString().trim();
@@ -1131,11 +1131,9 @@ public class FragmentTrasy extends Fragment {
                 return;
             }
 
-            String kategoria = edtKategoria.getText() == null ? "" : edtKategoria.getText().toString().trim();
-            if (kategoria.isEmpty()) {
-                kategoria = "Inne";
-            }
-            String finalKategoria = kategoria;
+            String kategoria = spinnerKategoria.getSelectedItem() == null
+                    ? "Inne"
+                    : spinnerKategoria.getSelectedItem().toString();
 
             if (rbNazwa.isChecked()) {
                 String adres = edtAdres.getText() == null ? "" : edtAdres.getText().toString().trim();
@@ -1146,17 +1144,14 @@ public class FragmentTrasy extends Fragment {
                 }
 
                 dialog.dismiss();
-                geokodujIZapiszPunkt(nazwa, finalKategoria, adres);
+                geokodujIZapiszPunkt(nazwa, kategoria, adres);
                 return;
             }
 
             if (rbWspolrzedne.isChecked()) {
-                String latTekst = edtLat.getText() == null ? "" : edtLat.getText().toString().trim().replace(",", ".");
-                String lonTekst = edtLon.getText() == null ? "" : edtLon.getText().toString().trim().replace(",", ".");
-
                 try {
-                    double lat = Double.parseDouble(latTekst);
-                    double lon = Double.parseDouble(lonTekst);
+                    double lat = Double.parseDouble((edtLat.getText() == null ? "" : edtLat.getText().toString()).trim().replace(",", "."));
+                    double lon = Double.parseDouble((edtLon.getText() == null ? "" : edtLon.getText().toString()).trim().replace(",", "."));
 
                     if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
                         Toast.makeText(context, "Współrzędne są poza dopuszczalnym zakresem", Toast.LENGTH_SHORT).show();
@@ -1164,23 +1159,80 @@ public class FragmentTrasy extends Fragment {
                     }
 
                     dialog.dismiss();
-                    zapiszNowyPunkt(nazwa, finalKategoria, lat, lon);
+                    zapiszNowyPunkt(nazwa, kategoria, lat, lon);
                 } catch (NumberFormatException e) {
-                    Toast.makeText(context, "Podaj poprawne współrzędne (np. 50.06143, 19.93658)", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(context, "Podaj poprawne współrzędne", Toast.LENGTH_SHORT).show();
                 }
-
                 return;
             }
 
-            // rbMapa.isChecked()
             if (Double.isNaN(wybranaLokalizacja[0]) || Double.isNaN(wybranaLokalizacja[1])) {
                 Toast.makeText(context, "Najpierw wskaż punkt na mapie", Toast.LENGTH_SHORT).show();
                 return;
             }
 
             dialog.dismiss();
-            zapiszNowyPunkt(nazwa, finalKategoria, wybranaLokalizacja[0], wybranaLokalizacja[1]);
+            zapiszNowyPunkt(nazwa, kategoria, wybranaLokalizacja[0], wybranaLokalizacja[1]);
         });
+    }
+
+    private void ustawWybranyPunktNaMiniMapie(MapView mapaMini, Marker[] markerWyboru,
+                                              double[] wybranaLokalizacja, TextView txtWybranaLokalizacja,
+                                              GeoPoint punkt) {
+        wybranaLokalizacja[0] = punkt.getLatitude();
+        wybranaLokalizacja[1] = punkt.getLongitude();
+
+        if (markerWyboru[0] != null) {
+            mapaMini.getOverlays().remove(markerWyboru[0]);
+        }
+
+        Marker marker = new Marker(mapaMini);
+        marker.setPosition(punkt);
+        marker.setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM);
+        marker.setTitle("Wybrany punkt");
+        mapaMini.getOverlays().add(marker);
+        markerWyboru[0] = marker;
+        mapaMini.getController().animateTo(punkt);
+        mapaMini.invalidate();
+
+        txtWybranaLokalizacja.setText(String.format(Locale.ROOT, "Wybrano: %.6f, %.6f", punkt.getLatitude(), punkt.getLongitude()));
+    }
+
+    private TextView tekstDialogu(String tekst, int rozmiar, String kolor, boolean pogrubiony) {
+        TextView textView = new TextView(requireContext());
+        textView.setText(tekst);
+        textView.setTextSize(rozmiar);
+        textView.setTextColor(Color.parseColor(kolor));
+
+        if (pogrubiony) {
+            textView.setTypeface(null, Typeface.BOLD);
+        }
+
+        return textView;
+    }
+
+    private void stylizujDialogDodawaniaPunktu(AlertDialog dialog) {
+        Button dodaj = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        Button anuluj = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
+
+        if (dodaj != null) {
+            dodaj.setTextColor(Color.WHITE);
+            dodaj.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#7C3AED")));
+        }
+
+        if (anuluj != null) {
+            anuluj.setTextColor(Color.parseColor("#7C3AED"));
+            anuluj.setBackground(utworzTloPrzyciskuDialogu("#FFFFFF", "#D1D5DB"));
+        }
+    }
+
+    private GradientDrawable utworzTloPrzyciskuDialogu(String kolorTla, String kolorObrysu) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.RECTANGLE);
+        drawable.setCornerRadius(dp(12));
+        drawable.setColor(Color.parseColor(kolorTla));
+        drawable.setStroke(dp(1), Color.parseColor(kolorObrysu));
+        return drawable;
     }
 
     private LinearLayout.LayoutParams marginTopParams(int marginTop) {

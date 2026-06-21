@@ -6,7 +6,7 @@ import java.util.UUID;
 
 public class PunktTrasyMapper {
 
-    public static PunktTrasy toModel(PunktTrasyEntity entity) {
+    public static PunktTrasy toModel(PunktTrasyZKategoria entity) {
         if (entity == null) {
             return null;
         }
@@ -29,34 +29,32 @@ public class PunktTrasyMapper {
         return punkt;
     }
 
-    public static List<PunktTrasy> toModelList(List<PunktTrasyEntity> entities) {
+    public static List<PunktTrasy> toModelList(List<PunktTrasyZKategoria> entities) {
         List<PunktTrasy> punkty = new ArrayList<>();
 
         if (entities == null) {
             return punkty;
         }
 
-        for (PunktTrasyEntity entity : entities) {
+        for (PunktTrasyZKategoria entity : entities) {
             punkty.add(toModel(entity));
         }
 
         return punkty;
     }
 
-    public static PunktTrasyEntity toEntity(PunktTrasy punkt) {
+    public static PunktTrasyEntity toEntity(PunktTrasy punkt, String kategoriaUuid) {
         if (punkt == null) {
             return null;
         }
 
         return new PunktTrasyEntity(
                 punkt.getnId().toString(),
-                punkt.getTrasaId() == null ? null : punkt.getTrasaId().toString(),
+                kategoriaUuid,
                 punkt.getNazwa(),
                 punkt.getOpis(),
-                punkt.getKategoria(),
                 punkt.getLatitude(),
-                punkt.getLongitude(),
-                punkt.getKolejnosc()
+                punkt.getLongitude()
         );
     }
 }

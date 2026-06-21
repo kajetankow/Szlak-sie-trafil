@@ -86,7 +86,7 @@ public class FragmentStart extends Fragment {
     private String aktualnaLokacja = "";
     private List<Trasa> wszystkieTrasy = new ArrayList<>();
     private List<TreningEntity> wszystkieTreningi = new ArrayList<>();
-    private List<PunktTrasy> wszystkiePunkty = new ArrayList<>();
+    private List<PunktTrasy> ostatnioOdwiedzonePunkty = new ArrayList<>();
 
     private final Handler lokalizacjaHandler = new Handler(Looper.getMainLooper());
 
@@ -180,11 +180,11 @@ public class FragmentStart extends Fragment {
             odswiezStatystyki();
         });
 
-        trasyViewModel.getPunkty().observe(getViewLifecycleOwner(), punkty -> {
+        trasyViewModel.getOstatnioOdwiedzonePunkty().observe(getViewLifecycleOwner(), punkty -> {
             if (punkty == null) {
-                wszystkiePunkty = new ArrayList<>();
+                ostatnioOdwiedzonePunkty = new ArrayList<>();
             } else {
-                wszystkiePunkty = punkty;
+                ostatnioOdwiedzonePunkty = punkty;
             }
 
             odswiezOstatnioOdwiedzonePunkty();
@@ -192,7 +192,7 @@ public class FragmentStart extends Fragment {
 
         trasyViewModel.pobierzTrasy();
         trasyViewModel.pobierzTreningi();
-        trasyViewModel.pobierzPunkty();
+        trasyViewModel.pobierzOstatnioOdwiedzonePunkty();
 
         ustawPowitanieGlowne();
         odswiezStanLogowania();
@@ -213,7 +213,7 @@ public class FragmentStart extends Fragment {
 
         if (trasyViewModel != null) {
             trasyViewModel.pobierzTreningi();
-            trasyViewModel.pobierzPunkty();
+            trasyViewModel.pobierzOstatnioOdwiedzonePunkty();
         }
 
         automatyczneOdswiezanieLokacji = true;
@@ -575,52 +575,17 @@ public class FragmentStart extends Fragment {
             return;
         }
 
-        List<PunktTrasy> punkty = new ArrayList<>();
-        List<String> dodane = new ArrayList<>();
-
-        for (TreningEntity trening : wszystkieTreningi) {
-            if (trening == null || trening.trasaUuid == null) {
-                continue;
-            }
-
-            for (PunktTrasy punkt : wszystkiePunkty) {
-                if (punkt == null || punkt.getTrasaId() == null) {
-                    continue;
-                }
-
-                if (!trening.trasaUuid.equals(punkt.getTrasaId().toString())) {
-                    continue;
-                }
-
-                String klucz = punkt.getnId().toString();
-                if (dodane.contains(klucz)) {
-                    continue;
-                }
-
-                dodane.add(klucz);
-                punkty.add(punkt);
-
-                if (punkty.size() >= 5) {
-                    break;
-                }
-            }
-
-            if (punkty.size() >= 5) {
-                break;
-            }
-        }
-
         sekcjaOstatniePunkty.setVisibility(View.VISIBLE);
         kontenerOstatnichPunktow.removeAllViews();
 
-        if (punkty.isEmpty()) {
+        if (ostatnioOdwiedzonePunkty.isEmpty()) {
             txtBrakOstatnichPunktow.setVisibility(View.VISIBLE);
             return;
         }
 
         txtBrakOstatnichPunktow.setVisibility(View.GONE);
 
-        for (PunktTrasy punkt : punkty) {
+        for (PunktTrasy punkt : ostatnioOdwiedzonePunkty) {
             kontenerOstatnichPunktow.addView(utworzKarteOdwiedzonegoPunktu(punkt));
         }
     }
