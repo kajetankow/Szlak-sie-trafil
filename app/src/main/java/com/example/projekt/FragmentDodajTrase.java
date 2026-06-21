@@ -11,6 +11,7 @@ import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -132,6 +133,7 @@ public class FragmentDodajTrase extends Fragment {
         trasyViewModel.pobierzPunkty();
 
         przypiszWidoki(view);
+        dostosujEtykietyKrokow(view);
         przygotujSpinnerTypu();
         przygotujMapy();
         ustawListenery();
@@ -208,6 +210,30 @@ public class FragmentDodajTrase extends Fragment {
 
         mapaKreator = view.findViewById(R.id.mapaKreatorTrasy);
         mapaPodsumowanie = view.findViewById(R.id.mapaPodsumowanieTrasy);
+    }
+
+    private void dostosujEtykietyKrokow(View view) {
+        View panelKroki = view.findViewById(R.id.panelKroki);
+        if (panelKroki == null) {
+            return;
+        }
+
+        panelKroki.post(() -> {
+            int szerokoscSegmentu = panelKroki.getWidth() / 3;
+            boolean wasko = szerokoscSegmentu < dp(116);
+
+            txtKrok1.setText(wasko ? "1.\nDane" : "1. Dane");
+            txtKrok2.setText(wasko ? "2.\nPunkty" : "2. Punkty");
+            txtKrok3.setText(wasko ? "3.\nPodsumowanie" : "3. Podsumowanie");
+
+            txtKrok1.setSingleLine(!wasko);
+            txtKrok2.setSingleLine(!wasko);
+            txtKrok3.setSingleLine(!wasko);
+
+            txtKrok1.setMaxLines(wasko ? 2 : 1);
+            txtKrok2.setMaxLines(wasko ? 2 : 1);
+            txtKrok3.setMaxLines(wasko ? 2 : 1);
+        });
     }
 
     private void przygotujSpinnerTypu() {
@@ -680,9 +706,13 @@ public class FragmentDodajTrase extends Fragment {
         scrollParams.setMargins(0, dp(8), 0, 0);
         kontener.addView(scrollView, scrollParams);
 
+        ScrollView dialogScroll = new ScrollView(requireContext());
+        dialogScroll.setFillViewport(false);
+        dialogScroll.addView(kontener);
+
         AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle("Punkty")
-                .setView(kontener)
+                .setView(dialogScroll)
                 .setNegativeButton("Zamknij", null)
                 .create();
 
@@ -695,6 +725,7 @@ public class FragmentDodajTrase extends Fragment {
         stylizujPrzyciskZamknij(dialog);
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         }
     }
 

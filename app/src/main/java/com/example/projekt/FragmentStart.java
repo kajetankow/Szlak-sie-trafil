@@ -884,28 +884,20 @@ public class FragmentStart extends Fragment {
     }
 
     private void pobierzLokacje() {
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED
-                && ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            aktualnaLokacja = "";
+        boolean fine = ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
+        boolean coarse = ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
 
-            txtPolecaneNaglowek.setText("Polecane przykładowe trasy dla lokalizacji:");
-            txtGpsInfo.setText("Brak dostępu do GPS. Nie znaleziono tras w Twojej lokalizacji.");
-
-            odswiezPolecaneTrasy();
+        if (!fine && !coarse) {
+            ustawBrakLokacji("Brak dostępu do lokalizacji. Nie znaleziono tras w Twojej lokalizacji.");
             return;
         }
 
         LocationManager locationManager = (LocationManager) requireContext().getSystemService(Context.LOCATION_SERVICE);
 
         if (locationManager == null) {
-            aktualnaLokacja = "";
-
-            txtPolecaneNaglowek.setText("Polecane przykładowe trasy dla lokalizacji:");
-            txtGpsInfo.setText("Nie udało się uruchomić usługi lokalizacji.");
-
-            odswiezPolecaneTrasy();
+            ustawBrakLokacji("Nie udało się uruchomić usługi lokalizacji.");
             return;
         }
 
@@ -913,14 +905,21 @@ public class FragmentStart extends Fragment {
             txtGpsInfo.setText("Pobieramy aktualną lokalizację telefonu...");
         }
 
+        boolean poproszonoOLokalizacje = false;
+        Location ostatnia = pobierzNajlepszaOstatniaZnana(locationManager, fine, coarse);
+
+        if (ostatnia != null) {
+            obsluzNowaLokalizacje(ostatnia.getLatitude(), ostatnia.getLongitude());
+        }
+
         try {
-            if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            if (fine && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 locationManager.requestSingleUpdate(
                         LocationManager.GPS_PROVIDER,
                         location -> obsluzNowaLokalizacje(location.getLatitude(), location.getLongitude()),
                         Looper.getMainLooper()
                 );
-                return;
+                poproszonoOLokalizacje = true;
             }
 
             if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
@@ -929,50 +928,55 @@ public class FragmentStart extends Fragment {
                         location -> obsluzNowaLokalizacje(location.getLatitude(), location.getLongitude()),
                         Looper.getMainLooper()
                 );
-                return;
+                poproszonoOLokalizacje = true;
             }
 
-            pobierzOstatniaZnanaLokacje(locationManager);
-
+            if (!poproszonoOLokalizacje && ostatnia == null) {
+                ustawBrakLokacji("Nie udało się pobrać lokalizacji telefonu.");
+            }
         } catch (Exception e) {
-            pobierzOstatniaZnanaLokacje(locationManager);
+            Location awaryjna = pobierzNajlepszaOstatniaZnana(locationManager, fine, coarse);
+            if (awaryjna != null) {
+                obsluzNowaLokalizacje(awaryjna.getLatitude(), awaryjna.getLongitude());
+            } else {
+                ustawBrakLokacji("Nie udało się pobrać lokalizacji telefonu.");
+            }
         }
     }
 
-    private void pobierzOstatniaZnanaLokacje(LocationManager locationManager) {
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED
-                && ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            return;
+    private Location pobierzNajlepszaOstatniaZnana(LocationManager locationManager, boolean fine, boolean coarse) {
+        Location gps = null;
+        Location network = null;
+
+        try {
+            if (fine) {
+                gps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+            }
+        } catch (SecurityException ignored) {
         }
 
-        Location location = null;
-
-        Location gps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-        Location network = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+        try {
+            if (fine || coarse) {
+                network = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+            }
+        } catch (SecurityException ignored) {
+        }
 
         if (gps != null && network != null) {
-            location = gps.getTime() > network.getTime() ? gps : network;
-        } else if (gps != null) {
-            location = gps;
-        } else if (network != null) {
-            location = network;
+            return gps.getTime() > network.getTime() ? gps : network;
         }
 
-        if (location == null) {
-            aktualnaLokacja = "";
-
-            txtPolecaneNaglowek.setText("Polecane przykładowe trasy dla lokalizacji:");
-            txtGpsInfo.setText("Nie udało się pobrać lokalizacji telefonu.");
-
-            odswiezPolecaneTrasy();
-            return;
-        }
-
-        obsluzNowaLokalizacje(location.getLatitude(), location.getLongitude());
+        return gps != null ? gps : network;
     }
 
+    private void ustawBrakLokacji(String komunikat) {
+        aktualnaLokacja = "";
+
+        txtPolecaneNaglowek.setText("Polecane przykładowe trasy dla lokalizacji:");
+        txtGpsInfo.setText(komunikat);
+
+        odswiezPolecaneTrasy();
+    }
     private void obsluzNowaLokalizacje(double lat, double lon) {
         if (ostatniaSzerokosc != null && ostatniaDlugosc != null) {
             float[] wynik = new float[1];

@@ -17,6 +17,7 @@ import android.util.Patterns;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ArrayAdapter;
@@ -318,9 +319,13 @@ public class FragmentMenu extends Fragment {
         formularz.addView(wierszWidoku("Kier.", spinnerKraj));
         formularz.addView(wierszPola("Telefon", edtTelefon));
 
+        ScrollView scrollView = new ScrollView(requireContext());
+        scrollView.setFillViewport(false);
+        scrollView.addView(formularz);
+
         AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle("Edytuj profil")
-                .setView(formularz)
+                .setView(scrollView)
                 .setNegativeButton("Anuluj", null)
                 .setPositiveButton("Zapisz", null)
                 .create();
@@ -587,6 +592,7 @@ public class FragmentMenu extends Fragment {
     private void zaokraglijDialog(AlertDialog dialog) {
         if (dialog.getWindow() != null) {
             dialog.getWindow().setBackgroundDrawableResource(R.drawable.bg_dialog_rounded);
+            dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         }
     }
 
