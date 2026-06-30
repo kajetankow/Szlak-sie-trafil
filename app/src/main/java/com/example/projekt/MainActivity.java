@@ -12,6 +12,8 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class MainActivity extends AppCompatActivity {
 
+    public static final String EXTRA_OTWORZ_START = "com.example.projekt.OTWORZ_START";
+
     private BottomNavigationView bottomNavigationView;
 
     @Override
@@ -26,6 +28,20 @@ public class MainActivity extends AppCompatActivity {
         }
 
         bottomNavigationView.setOnItemSelectedListener(this::obsluzMenuDolne);
+
+        if (getIntent().getBooleanExtra(EXTRA_OTWORZ_START, false)) {
+            przejdzDoMenu(R.id.menu_start);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(@NonNull Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+
+        if (intent.getBooleanExtra(EXTRA_OTWORZ_START, false)) {
+            przejdzDoMenu(R.id.menu_start);
+        }
     }
 
     private boolean obsluzMenuDolne(@NonNull MenuItem item) {
@@ -42,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         przejdzDoMenu(id);
-        return id == R.id.menu_mapa ? false : true;
+        return id != R.id.menu_mapa;
     }
 
     private void przejdzDoMenu(int id) {

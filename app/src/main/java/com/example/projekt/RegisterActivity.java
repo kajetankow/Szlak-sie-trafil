@@ -1,11 +1,13 @@
 package com.example.projekt;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Patterns;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -23,14 +25,12 @@ import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 
 public class RegisterActivity extends AppCompatActivity {
 
     private static final String PREFS_NAME = "tourroute_prefs";
 
-    private TextView txtPowrotRegister;
     private TextView txtPokazRegulaminRegister;
     private TextView txtRegulaminRegister;
 
@@ -47,14 +47,12 @@ public class RegisterActivity extends AppCompatActivity {
 
     private RadioGroup radioKontakt;
     private RadioButton radioEmail;
-    private RadioButton radioTelefon;
 
     private LinearLayout panelEmail;
     private LinearLayout panelTelefon;
 
     private Spinner spinnerKraj;
     private CheckBox checkRegulaminRegister;
-    private Button btnRegisterSubmit;
 
     private final List<KrajTelefon> kraje = new ArrayList<>();
 
@@ -70,7 +68,6 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private void przypiszWidoki() {
-        txtPowrotRegister = findViewById(R.id.txtPowrotRegister);
         txtPokazRegulaminRegister = findViewById(R.id.txtPokazRegulaminRegister);
         txtRegulaminRegister = findViewById(R.id.txtRegulaminRegister);
 
@@ -87,14 +84,12 @@ public class RegisterActivity extends AppCompatActivity {
 
         radioKontakt = findViewById(R.id.radioKontakt);
         radioEmail = findViewById(R.id.radioEmail);
-        radioTelefon = findViewById(R.id.radioTelefon);
 
         panelEmail = findViewById(R.id.panelEmail);
         panelTelefon = findViewById(R.id.panelTelefon);
 
         spinnerKraj = findViewById(R.id.spinnerKraj);
         checkRegulaminRegister = findViewById(R.id.checkRegulaminRegister);
-        btnRegisterSubmit = findViewById(R.id.btnRegisterSubmit);
     }
 
     private void przygotujKraje() {
@@ -113,23 +108,25 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private void przygotujSpinner() {
-        ArrayAdapter<KrajTelefon> adapter = new ArrayAdapter<KrajTelefon>(
+        ArrayAdapter<KrajTelefon> adapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_spinner_item,
                 kraje
         ) {
+            @NonNull
             @Override
-            public View getView(int position, View convertView, android.view.ViewGroup parent) {
+            public View getView(int position, View convertView, @NonNull ViewGroup parent) {
                 TextView view = (TextView) super.getView(position, convertView, parent);
                 view.setText(kraje.get(position).kierunkowy);
                 return view;
             }
 
+            @NonNull
             @Override
-            public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
+            public View getDropDownView(int position, View convertView, @NonNull ViewGroup parent) {
                 TextView view = (TextView) super.getDropDownView(position, convertView, parent);
                 KrajTelefon kraj = kraje.get(position);
-                view.setText(kraj.nazwa + " (" + kraj.kierunkowy + ")");
+                view.setText(getString(R.string.country_with_code, kraj.nazwa, kraj.kierunkowy));
                 return view;
             }
         };
@@ -139,15 +136,18 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private void ustawListenery() {
+        TextView txtPowrotRegister = findViewById(R.id.txtPowrotRegister);
+        Button btnRegisterSubmit = findViewById(R.id.btnRegisterSubmit);
+
         txtPowrotRegister.setOnClickListener(v -> finish());
 
         txtPokazRegulaminRegister.setOnClickListener(v -> {
             if (txtRegulaminRegister.getVisibility() == View.VISIBLE) {
                 txtRegulaminRegister.setVisibility(View.GONE);
-                txtPokazRegulaminRegister.setText("Pokaż regulamin");
+                txtPokazRegulaminRegister.setText(R.string.register_show_terms);
             } else {
                 txtRegulaminRegister.setVisibility(View.VISIBLE);
-                txtPokazRegulaminRegister.setText("Ukryj regulamin");
+                txtPokazRegulaminRegister.setText(R.string.register_hide_terms);
             }
         });
 
@@ -280,7 +280,15 @@ public class RegisterActivity extends AppCompatActivity {
                 haslo
         );
 
-        Toast.makeText(this, "Konto utworzone. Zalogowano jako: " + pseudonim, Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Zarejestrowano i zalogowano", Toast.LENGTH_SHORT).show();
+        przejdzNaStart();
+    }
+
+    private void przejdzNaStart() {
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_OTWORZ_START, true);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
         finish();
     }
 

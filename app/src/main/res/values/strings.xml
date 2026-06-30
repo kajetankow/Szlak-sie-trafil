@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Szlak!</string>
+    <string name="register_show_terms">Pokaż regulamin</string>
+    <string name="register_hide_terms">Ukryj regulamin</string>
+    <string name="login_register_link">Nie masz jeszcze konta? Zarejestruj się</string>
+    <string name="country_with_code">%1$s (%2$s)</string>
 </resources>

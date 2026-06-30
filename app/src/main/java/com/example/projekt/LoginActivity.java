@@ -10,6 +10,7 @@ import android.text.TextUtils;
 import android.text.method.LinkMovementMethod;
 import android.text.style.ClickableSpan;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -37,13 +38,9 @@ public class LoginActivity extends AppCompatActivity {
     private TextInputEditText edtHaslo;
     private TextInputLayout inputEmail;
     private LinearLayout panelTelefon;
-    private RadioGroup radioLoginTyp;
     private RadioButton radioEmail;
     private RadioButton radioTelefon;
     private Spinner spinnerKraj;
-    private Button btnZaloguj;
-    private Button btnGosc;
-    private TextView txtPowrotLogin;
     private TextView txtLinkRegister;
 
     private final List<KrajTelefon> kraje = new ArrayList<>();
@@ -58,13 +55,13 @@ public class LoginActivity extends AppCompatActivity {
         edtHaslo = findViewById(R.id.edtLoginHaslo);
         inputEmail = findViewById(R.id.inputLoginEmail);
         panelTelefon = findViewById(R.id.panelLoginTelefon);
-        radioLoginTyp = findViewById(R.id.radioLoginTyp);
+        RadioGroup radioLoginTyp = findViewById(R.id.radioLoginTyp);
         radioEmail = findViewById(R.id.radioLoginEmail);
         radioTelefon = findViewById(R.id.radioLoginTelefon);
         spinnerKraj = findViewById(R.id.spinnerLoginKraj);
-        btnZaloguj = findViewById(R.id.btnZaloguj);
-        btnGosc = findViewById(R.id.btnKontynuujJakoGosc);
-        txtPowrotLogin = findViewById(R.id.txtPowrotLogin);
+        Button btnZaloguj = findViewById(R.id.btnZaloguj);
+        Button btnGosc = findViewById(R.id.btnKontynuujJakoGosc);
+        TextView txtPowrotLogin = findViewById(R.id.txtPowrotLogin);
         txtLinkRegister = findViewById(R.id.txtLinkRegister);
 
         przygotujKraje();
@@ -129,18 +126,26 @@ public class LoginActivity extends AppCompatActivity {
             editor.putString("uzytkownik_id", java.util.UUID.randomUUID().toString());
         }
         editor.apply();
-        Toast.makeText(this, "Zalogowano", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Pomyślnie zalogowano", Toast.LENGTH_SHORT).show();
+        przejdzNaStart();
+    }
+
+    private void przejdzNaStart() {
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.putExtra(MainActivity.EXTRA_OTWORZ_START, true);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
         finish();
     }
 
     private void ustawLinkRejestracji() {
-        String tekst = "Nie masz jeszcze konta? Zarejestruj się";
+        String tekst = getString(R.string.login_register_link);
         SpannableString spannable = new SpannableString(tekst);
         int start = tekst.indexOf("Zarejestruj");
 
         spannable.setSpan(new ClickableSpan() {
             @Override
-            public void onClick(View widget) {
+            public void onClick(@NonNull View widget) {
                 startActivity(new Intent(LoginActivity.this, RegisterActivity.class));
             }
         }, start, tekst.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -171,23 +176,25 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void przygotujSpinner() {
-        ArrayAdapter<KrajTelefon> adapter = new ArrayAdapter<KrajTelefon>(
+        ArrayAdapter<KrajTelefon> adapter = new ArrayAdapter<>(
                 this,
                 android.R.layout.simple_spinner_item,
                 kraje
         ) {
+            @NonNull
             @Override
-            public View getView(int position, View convertView, android.view.ViewGroup parent) {
+            public View getView(int position, View convertView, @NonNull ViewGroup parent) {
                 TextView view = (TextView) super.getView(position, convertView, parent);
                 view.setText(kraje.get(position).kierunkowy);
                 return view;
             }
 
+            @NonNull
             @Override
-            public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
+            public View getDropDownView(int position, View convertView, @NonNull ViewGroup parent) {
                 TextView view = (TextView) super.getDropDownView(position, convertView, parent);
                 KrajTelefon kraj = kraje.get(position);
-                view.setText(kraj.nazwa + " (" + kraj.kierunkowy + ")");
+                view.setText(getString(R.string.country_with_code, kraj.nazwa, kraj.kierunkowy));
                 return view;
             }
         };
